@@ -1,4 +1,4 @@
-from app.agents.chat_agent import ChatAgent
+from app.agent.chat_agent import ChatAgent
 
 class ChatService:
     def __init__(self) -> None:

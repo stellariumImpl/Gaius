@@ -36,7 +36,7 @@ uvicorn app.main:app --reload
 
 - `api` 层：只收请求和回响应，不做业务判断
 - `services` 层：负责编排业务流程
-- `agents` 层：每个 agent 只关心自己的决策逻辑
+- `agent` 层：每个 agent 只关心自己的决策逻辑
 - `core` 层：放未来不会轻易变化的基础抽象
 
 核心原则：
@@ -63,7 +63,7 @@ app/
 │   ├── chat_service.py
 │   ├── aiops_service.py
 │   └── coordinator_service.py
-├── agents/
+├── agent/
 │   ├── chat_agent.py
 │   └── aiops_agent.py
 ├── tools/
@@ -113,9 +113,9 @@ app/
 
 - `coordinator_service`
 
-### Agents 层
+### Agent 层
 
-`agents` 层中的每个 agent 只负责自己的决策逻辑。
+`agent` 层中的每个 agent 只负责自己的决策逻辑。
 
 这样以后新增下面这些 agent 时，不会把原来的 service 搅乱：
 
