@@ -36,7 +36,7 @@ class Evidence(BaseModel):
 
 class AgentOutput(BaseModel):
     """智能体标准输出契约
-    
+
     设计原则:
     - 面向运维决策,而不是面向自由聊天
     - 必须允许"不确定"和"信息不足"

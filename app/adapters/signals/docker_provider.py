@@ -17,8 +17,9 @@ from typing import Any
 
 def get_container_snapshots() -> list[dict[str, Any]]:
     """获取当前 Docker 容器快照
-    
+
     返回字段:
+    - container_id: 容器 ID
     - container_name: 容器名
     - image: 镜像名
     - status: 运行状态(running / exited / restarting ...)
@@ -81,12 +82,10 @@ def _extract_snapshot(inspect_data: dict[str, Any]) -> dict[str, Any]:
     state = inspect_data.get("State", {}) or {}
     config = inspect_data.get("Config", {}) or {}
 
-    # Docker inspect 的 Name 通常带前导 /
     raw_name = inspect_data.get("Name", "") or ""
     container_name = raw_name.lstrip("/") if isinstance(raw_name, str) else "unknown"
 
     image = config.get("Image", "unknown")
-
     status = state.get("Status", "unknown")
     restart_count = inspect_data.get("RestartCount", 0)
 
