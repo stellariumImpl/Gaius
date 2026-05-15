@@ -1,21 +1,10 @@
-对，这份 README 已经落后于当前实现了。  
-它还停留在“只有 `health` 骨架”的阶段，但你现在其实已经有了：
-
-- `chat` 主线可用
-- `aiops` 骨架已占位
-- `agent / services / core / tools / models` 分层已经长出来
-- `context_builder.py` 和 `decision.py` 也已经进入设计范围
-
-所以 README 现在应该从“规划中的结构”升级成“**当前已实现 + 后续规划**”。
-
-我建议你直接改成下面这版。
-
-```md
 # Gaius
+
+> 面向 CTF 比赛平台运维场景的 AI 智能体实验项目
 
 ## 概况
 
-当前项目处于 `0.1.x` 可运行骨架阶段。
+当前项目处于 **`0.1.x` 可运行骨架 + 产品抽象演进阶段**。
 
 这一版已经完成：
 
@@ -25,8 +14,22 @@
 - `time_tool` 工具调用
 - 基于 `session_id + user_id` 的会话隔离
 - 基于 `InMemorySaver` 的基础多轮记忆
-- `aiops` 业务线骨架占位
-- 为未来多 agent 演进预留分层边界
+- `aiops` 路由与服务骨架
+- 面向 CTF 运维智能体的第一版领域模型
+- 基于真实 Docker 环境的第一条 Signal 采集链路
+- `Signal -> Incident -> Output` 的第一版真实闭环
+
+当前实验平台为：
+
+- 一台 Ubuntu 服务器
+- 一个 GZ::CTF 部署实例
+- Docker 运行环境
+
+但需要强调：
+
+**GZ::CTF 只是当前实验样本，不是产品定义本身。**
+
+---
 
 ## 当前目录结构
 
@@ -53,15 +56,31 @@
 │   ├── core/
 │   │   ├── llm.py
 │   │   ├── context_builder.py
-│   │   └── decision.py
+│   │   ├── decision.py
+│   │   ├── incident_engine.py
+│   │   └── output_formatter.py
 │   ├── tools/
 │   │   ├── __init__.py
 │   │   ├── registry.py
 │   │   └── time_tool.py
-│   └── models/
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── request.py
+│   │   └── response.py
+│   ├── domain/
+│   │   ├── __init__.py
+│   │   ├── signal.py
+│   │   ├── incident.py
+│   │   └── output.py
+│   └── adapters/
 │       ├── __init__.py
-│       ├── request.py
-│       └── response.py
+│       ├── mapping/
+│       │   ├── __init__.py
+│       │   └── signal_mapper.py
+│       └── signals/
+│           ├── __init__.py
+│           └── docker_provider.py
+├── docs/
 ├── .env
 ├── pyproject.toml
 ├── uv.lock
@@ -69,10 +88,18 @@
 └── test.py
 ```
 
+---
+
 ## 启动方式
 
 ```bash
 uvicorn app.main:app --reload
+```
+
+如果按显式端口启动：
+
+```bash
+uvicorn app.main:app --reload --port 9900
 ```
 
 健康检查：
@@ -89,40 +116,22 @@ curl -X POST http://127.0.0.1:8000/api/chat \
   -d '{"session_id":"s1","user_id":"u1","question":"现在几点？"}'
 ```
 
-## 当前设计原则
-
-这一版先做单 agent，但模块边界按未来多 agent 演进的标准来设计。
-
-- `api` 层：只收请求和回响应，不做业务判断
-- `services` 层：负责编排业务流程
-- `agent` 层：每个 agent 只关心自己的决策逻辑
-- `core` 层：放未来不会轻易变化的基础抽象
-- `tools` 层：统一管理工具装配，不让工具列表散落各处
-- `models` 层：统一管理请求与响应结构
-
-核心原则：
-
-- 现在先落单 agent
-- 未来允许多 agent 协作
-- 不硬编码业务路由
-- 不把规则写死在 API 层
-- 不靠特判堆行为
-- 单 agent 落地，边界按多 agent 标准设计
+---
 
 ## 当前已实现
 
 ### Chat 业务线
 
-当前已实现的 `chat` 主线：
+当前 `chat` 主线已具备：
 
 - `api/chat.py`：HTTP 入口
-- `services/chat_service.py`：chat 业务编排
-- `agent/chat_agent.py`：chat agent 决策与执行
-- `tools/registry.py`：统一装配 chat 可用工具
+- `services/chat_service.py`：业务编排
+- `agent/chat_agent.py`：聊天决策与执行
+- `tools/registry.py`：统一工具装配
 - `tools/time_tool.py`：时间工具
 - `core/llm.py`：统一模型创建
 - `core/context_builder.py`：统一构造 agent 输入
-- `core/decision.py`：预留统一决策表达结构
+- `core/decision.py`：决策抽象预留
 
 当前能力包括：
 
@@ -133,112 +142,178 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 
 ### AIOps 业务线
 
-当前 `aiops` 线已完成骨架占位：
+当前 `aiops` 主线仍处于 **骨架 + 产品抽象接入阶段**：
 
 - `api/aiops.py`
 - `services/aiops_service.py`
 - `agent/aiops_agent.py`
 
-目前仍是占位实现，后续会逐步演进为独立的诊断 agent workflow。
+当前重点不是继续堆平台特例，而是逐步让这条线围绕统一的：
 
-### Coordinator 业务线
+- `Signal`
+- `Incident`
+- `AgentOutput`
 
-当前 `services/coordinator_service.py` 仅做未来扩展占位。
+运转起来。
 
-它的职责不是当前执行业务，而是为未来的多 agent 协作预留统一编排入口。
+---
 
-## 分层说明
+## 新增中的产品抽象主线
 
-### API 层
+为了把系统从“针对单个平台写规则”演进为“面向 CTF 运维场景的智能体”，当前已新增第一批抽象。
 
-`api` 层只负责：
+### 1. 领域模型
 
-- 接收请求
-- 调用 service
-- 返回响应
+- `app/domain/signal.py`
+- `app/domain/incident.py`
+- `app/domain/output.py`
 
-不负责：
+它们分别定义：
 
-- 业务决策
-- agent 选择
-- 工具选择
+- `Signal`：平台无关的运维线索
+- `Incident`：对多个 Signal 的归纳结果
+- `AgentOutput`：智能体最终交付的标准输出结构
 
-### Services 层
+### 2. 真实环境接入
 
-`services` 层负责编排业务流程。
+- `app/adapters/signals/docker_provider.py`
 
-当前拆分为：
+这层直接从真实 Docker 环境读取容器事实，例如：
 
-- `chat_service`
-- `aiops_service`
-- `coordinator_service`
+- 容器名
+- 镜像名
+- 运行状态
+- 健康状态
+- 重启次数
 
-含义分别是：
+### 3. 映射与聚合
 
-- `chat_service`：单条 chat 业务线
-- `aiops_service`：单条 aiops 业务线
-- `coordinator_service`：未来跨 agent 编排入口
+- `app/adapters/mapping/signal_mapper.py`
+- `app/core/incident_engine.py`
+- `app/core/output_formatter.py`
 
-### Agent 层
+当前已经能跑通的链路是：
 
-`agent` 层中的每个 agent 只负责自己的决策逻辑。
+**真实 Docker 容器状态 -> Signal -> Incident -> AgentOutput**
 
-当前包括：
+---
 
-- `chat_agent`
-- `aiops_agent`
+## 当前设计原则
 
-以后如果新增下面这些 agent，也不应该破坏 service 层职责：
+### 工程分层原则
 
-- `router_agent`
-- `retrieval_agent`
-- `planner_agent`
+- `api` 层：只接收请求和返回响应
+- `services` 层：负责编排业务流程
+- `agent` 层：负责各自的决策逻辑
+- `tools` 层：统一定义与装配工具
+- `models` 层：承载请求/响应模型
+- `core` 层：放稳定核心能力
+- `domain` 层：放产品领域模型
+- `adapters` 层：负责真实环境接入与标准化映射
 
-### Core 层
+### 产品原则
 
-`core` 层放稳定抽象，避免后面到处散落重复逻辑：
+- 样本平台不等于产品定义
+- 不把 GZ::CTF 写死在核心逻辑里
+- 不把当前机器环境写死成默认真相
+- 真实环境数据应先映射为标准 `Signal`
+- 智能体应围绕 `Signal / Incident / Output` 运转
+- 不继续通过堆 if/else 的方式扩展诊断能力
 
-- `llm.py`：统一模型创建
-- `context_builder.py`：统一上下文组装
-- `decision.py`：统一决策对象
+---
 
-### Tools 层
+## 当前阶段判断
 
-`tools` 层负责工具定义与装配：
+当前项目不是“从 0 开始搭 Web 服务”，而是：
 
-- 工具定义放在独立文件中
-- 工具装配统一走 `registry.py`
-- 不在多个 agent/service 中重复手写工具列表
+**在已有 chat 工程之上，开始补一条面向 CTF 运维智能体的产品抽象主线。**
+
+也就是说，当前最重要的事情不是继续堆：
+
+- 平台特例
+- case 规则
+- prompt 模板
+
+而是逐步完成：
+
+1. 真实环境信号采集
+2. 标准化 `Signal`
+3. `Incident` 聚合
+4. 标准化 `AgentOutput`
+5. 可替换的推理层
+
+---
+
+## 当前局限
+
+当前这条新增主线虽然已经能跑，但仍有明显局限：
+
+- `signal_mapper.py` 仍是规则映射
+- `incident_engine.py` 仍是 case 聚合
+- `output_formatter.py` 仍是模板输出
+- 目前只接入了 Docker provider
+- 尚未接入日志 provider
+- 尚未接入 Prometheus / metrics provider
+- 尚未引入真正的平台无关推理层
+
+换句话说：
+
+**现在已经验证“主线能跑”，但还没有进入成熟的智能推理阶段。**
+
+---
+
+## 推荐演进路线
+
+### 第一阶段：保留已有成果
+- 保留 `Signal / Incident / AgentOutput`
+- 保留真实 `docker_provider`
+- 不再继续扩写更多 case 规则
+
+### 第二阶段：补充真实信号来源
+- 增加日志 provider
+- 增加健康检查 provider
+- 视资源情况接入 Prometheus provider
+
+### 第三阶段：引入推理层
+- 从 `incident_engine.py` / `output_formatter.py` 的硬编码规则
+- 迁移到统一 `reasoner`
+
+### 第四阶段：再考虑更强的智能体能力
+- Runbook 匹配
+- 可控推理流程
+- 多 agent 协作
+- 平台适配器扩展
+
+---
 
 ## 关于多 Agent
 
 当前理解是：
 
-- `chat/rag` 是一条线
+- `chat` 是一条线
 - `aiops` 是一条线
 
-它们现在是两套单独的 agent 逻辑，各司其职，还不是多 agent 协作系统。
+它们现在仍然是两条相对独立的单 agent / 单 workflow 逻辑。  
+还不是严格意义上的多 agent 协作系统。
 
-只有当系统内部出现下面这些行为时，才算进入多 agent：
+只有当系统内部出现下面这些行为时，才算更强意义上的多 agent：
 
 - 一个 agent 自动把任务交给另一个 agent
 - agent 之间传递结构化中间结果
-- 多个 agent 围绕同一个任务协作
-- 系统内部存在 coordinator 或 router 统一调度
+- 不同角色 agent 围绕同一运维任务协作
+- coordinator / router 显式调度不同角色
 
-因此当前推荐路线是：
+---
 
-1. 先把单 agent 做稳
-2. 提前把边界画对
-3. 再逐步引入多 agent 协作
+## 一句话总结
 
-## 下一步计划
+当前 `Gaius` 已经具备：
 
-下一阶段重点包括：
+- 可运行的 chat 主线
+- AIOps 业务骨架
+- 第一版 CTF 运维智能体领域模型
+- 第一条真实环境信号采集与输出闭环
 
-- 完善 `aiops` 业务线真实逻辑
-- 引入更多工具并统一注册
-- 将 `InMemorySaver` 升级为持久化 checkpointer
-- 逐步让 `coordinator_service` 承担真实跨 agent 编排职责
-- 补齐更正式的请求/响应模型与测试
-```
+接下来的重点，不是继续围绕样本平台堆规则，而是：
+
+**把现有骨架逐步演进为面向 CTF 比赛平台运维场景的平台无关 AI 智能体。**
