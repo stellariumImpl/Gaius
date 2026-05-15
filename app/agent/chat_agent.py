@@ -6,6 +6,7 @@ from loguru import logger
 
 from app.core.llm import get_chat_model
 from app.tools.registry import get_chat_tools
+from app.core.context_builder import build_chat_input
 
 
 class ChatAgent:
@@ -41,10 +42,13 @@ class ChatAgent:
     ) -> str:
         thread_id = f"{user_id}:{session_id}"
         try:
+            agent_input = build_chat_input(question=question)
+
             result = await self.agent.ainvoke(
-                {"messages": [{"role": "user", "content": question}]},
+                agent_input,
                 config={"configurable": {"thread_id": thread_id}},
             )
+            
             return self._extract_final_text(result)
 
         except LangChainException:
