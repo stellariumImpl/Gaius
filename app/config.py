@@ -13,4 +13,7 @@ class Settings(BaseSettings):
     host: str="0.0.0.0"
     port: int=9900
 
+    deepseek_api_key: str=""
+    deepseek_model_name: str="deepseek-chat"
+
 config=Settings()
