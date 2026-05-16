@@ -13,7 +13,11 @@
 from __future__ import annotations
 
 import subprocess
+from datetime import datetime
 from typing import Any
+from uuid import uuid4
+
+from app.domain.observation import ContainerLogObservation
 
 
 def get_container_logs(container_name: str, tail: int = 100) -> dict[str, Any]:
@@ -59,3 +63,49 @@ def get_multiple_container_logs(
         snapshots.append(get_container_logs(container_name=container_name, tail=tail))
 
     return snapshots
+
+
+def get_container_log_observation(
+    container_name: str,
+    tail: int = 100,
+) -> ContainerLogObservation:
+    """读取单个容器日志,并返回 observation 形式
+
+    注意:
+    - 保留现有 dict 输出函数不变
+    - observation 形式只表达日志事实,不表达诊断结论
+    """
+    snapshot = get_container_logs(container_name=container_name, tail=tail)
+    logs = snapshot.get("logs", "")
+    lines = logs.splitlines() if isinstance(logs, str) and logs else []
+
+    tags = ["docker", "container_log"]
+    if snapshot.get("error"):
+        tags.append("log_read_error")
+
+    return ContainerLogObservation(
+        observation_id=f"obs_{uuid4().hex[:12]}",
+        source="log_provider",
+        collected_at=datetime.now(),
+        target_ref={"type": "container", "name": container_name},
+        tags=tags,
+        container_name=container_name,
+        lines=lines,
+        truncation=f"tail={tail}",
+        log_source_path=f"docker logs {container_name}",
+    )
+
+
+def get_container_log_observations(
+    container_names: list[str],
+    tail: int = 100,
+) -> list[ContainerLogObservation]:
+    """批量读取多个容器日志,并返回 observation 列表"""
+    observations: list[ContainerLogObservation] = []
+
+    for container_name in container_names:
+        observations.append(
+            get_container_log_observation(container_name=container_name, tail=tail)
+        )
+
+    return observations
