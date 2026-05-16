@@ -20,6 +20,8 @@ from app.domain.output import AgentOutput
 
 logger = logging.getLogger(__name__)
 
+LOG_TAIL_LINES = 200
+
 
 class DiagnosisService:
     """第一版真实诊断服务入口"""
@@ -38,7 +40,10 @@ class DiagnosisService:
         )
 
         container_names = self._extract_relevant_container_names(snapshots)
-        log_snapshots = get_multiple_container_logs(container_names, tail=50)
+        log_snapshots = get_multiple_container_logs(
+            container_names,
+            tail=LOG_TAIL_LINES,
+        )
         log_contexts = build_log_context(log_snapshots)
 
         output = reason_with_llm(
@@ -66,7 +71,10 @@ class DiagnosisService:
             builder.register("docker_provider", get_container_state_observations)
             builder.register(
                 "log_provider",
-                lambda: get_container_log_observations(container_names, tail=50),
+                lambda: get_container_log_observations(
+                    container_names,
+                    tail=LOG_TAIL_LINES,
+                ),
             )
 
             bundle = builder.build()

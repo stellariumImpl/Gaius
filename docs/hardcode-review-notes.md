@@ -70,7 +70,7 @@
 
 - 诊断主线只看 Docker 状态
 - 诊断主线只看 Docker 日志
-- 默认 `tail=50`
+- 日志窗口当前依赖固定 `tail` 值
 - 只支持 `platform_id`
 - `DiagnosisService` 固定采集顺序
 
@@ -110,6 +110,40 @@
 - evidence candidates 结构依赖当前 signal vocabulary
 
 它们虽然优于硬规则，但还没有完全做到“平台无关 + 中立 observation 驱动”。
+
+### 3.5 ObservationBundle 接入阶段新增约束
+
+随着 `ObservationBundle`、`ObservationBuilder` 和 provider 双输出能力的加入，项目又新增了一批需要被明确记录的约束。
+
+这批约束与早期的 case 规则不同，它们更多属于：
+
+- 结构性硬编码
+- 编排硬编码
+- 阶段性采集策略硬编码
+
+当前新增的重点包括：
+
+- `ObservationKind` 的枚举词汇表
+- `PlatformMetadata` / `CollectionReport` 的字段结构
+- `docker_provider` / `log_provider` 的 observation 元数据命名
+- `DiagnosisService` 影子 bundle 的固定 provider 注册顺序
+- `DiagnosisService` 当前固定日志窗口
+
+这类约束当前总体比“诊断结论硬编码”更健康，因为它们主要还在组织事实，而不是直接替模型下结论。
+
+但也要警惕两种新风险：
+
+1. observation 层词汇表开始继续 case 化  
+   例如未来如果不断新增类似 `db_auth_log`、`redis_restart_event`、`gzctf_special_case` 这种 observation 类型，就会把 observation 层也变成隐性结论层。
+
+2. service 编排策略慢慢固化为新的隐性规则系统  
+   例如 provider 顺序、日志窗口、平台类型命名、默认 metadata 等如果长期不抽象，后面会变成新的“默认世界观”。
+
+因此，ObservationBundle 接入阶段应坚持：
+
+- 可以接受结构和编排上的临时硬编码
+- 但不应让 observation 层继续长出 diagnosis case 词汇
+- 也不应让 service 编排策略无限膨胀
 
 ---
 
