@@ -1,4 +1,12 @@
-"""Output Formatter: 将 Incident 转换为标准 AgentOutput"""
+"""Output Formatter: 将 Incident 转换为标准 AgentOutput
+
+STATUS: FROZEN
+
+说明:
+- 这是第一版模板化输出实现,用于验证 Incident -> AgentOutput 主线
+- 当前不再作为未来主线继续扩展
+- 后续应逐步降级为 fallback / 对照实现
+"""
 
 from __future__ import annotations
 

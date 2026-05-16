@@ -16,8 +16,10 @@
 - 基于 `InMemorySaver` 的基础多轮记忆
 - `aiops` 路由与服务骨架
 - 面向 CTF 运维智能体的第一版领域模型
-- 基于真实 Docker 环境的第一条 Signal 采集链路
-- `Signal -> Incident -> Output` 的第一版真实闭环
+- 基于真实 Docker 环境的容器状态采集
+- 基于真实 Docker 环境的容器日志采集
+- `/api/diagnosis` 真实诊断接口
+- `Docker 状态 + 日志上下文 + LLM` 的第一版真实诊断闭环
 
 当前实验平台为：
 
@@ -57,7 +59,10 @@
 │   │   ├── llm.py
 │   │   ├── context_builder.py
 │   │   ├── decision.py
+│   │   ├── llm_reasoner.py
+│   │   ├── log_context_builder.py
 │   │   ├── incident_engine.py
+│   │   ├── reasoner.py
 │   │   └── output_formatter.py
 │   ├── tools/
 │   │   ├── __init__.py
@@ -65,6 +70,7 @@
 │   │   └── time_tool.py
 │   ├── models/
 │   │   ├── __init__.py
+│   │   ├── diagnosis.py
 │   │   ├── request.py
 │   │   └── response.py
 │   ├── domain/
@@ -80,6 +86,7 @@
 │       └── signals/
 │           ├── __init__.py
 │           └── docker_provider.py
+│           └── log_provider.py
 ├── docs/
 ├── .env
 ├── pyproject.toml
@@ -156,6 +163,20 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 
 运转起来。
 
+### Diagnosis 诊断主线
+
+当前项目已经有一条真实可调用的诊断主线：
+
+- `api/diagnosis.py`
+- `models/diagnosis.py`
+- `services/diagnosis_service.py`
+- `adapters/signals/docker_provider.py`
+- `adapters/signals/log_provider.py`
+- `core/log_context_builder.py`
+- `core/llm_reasoner.py`
+
+这条链当前已经能直接对真实服务器上的 Docker 环境做诊断，并返回结构化 `AgentOutput`。
+
 ---
 
 ## 新增中的产品抽象主线
@@ -177,6 +198,7 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 ### 2. 真实环境接入
 
 - `app/adapters/signals/docker_provider.py`
+- `app/adapters/signals/log_provider.py`
 
 这层直接从真实 Docker 环境读取容器事实，例如：
 
@@ -185,16 +207,37 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 - 运行状态
 - 健康状态
 - 重启次数
+- 最近日志片段
 
-### 3. 映射与聚合
+### 3. 当前主线与过渡模块
+
+当前真实运行的诊断主线是：
+
+- `docker_provider.py`
+- `log_provider.py`
+- `log_context_builder.py`
+- `llm_reasoner.py`
+- `diagnosis_service.py`
+- `/api/diagnosis`
+
+当前更准确的链路是：
+
+**真实 Docker 状态 + 日志上下文 -> LLM 结构化诊断 -> `AgentOutput`**
+
+下面这些模块目前仍保留，但更适合作为过渡实现或 fallback，而不是未来主线：
 
 - `app/adapters/mapping/signal_mapper.py`
 - `app/core/incident_engine.py`
 - `app/core/output_formatter.py`
+- `app/core/reasoner.py`
 
-当前已经能跑通的链路是：
+这些模块当前应视为：
 
-**真实 Docker 容器状态 -> Signal -> Incident -> AgentOutput**
+- 冻结模块
+- 过渡实现
+- fallback / 对照实现
+
+也就是说，后续不再继续往这几处追加新的 case 规则或模板逻辑。
 
 ---
 
@@ -216,9 +259,47 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 - 样本平台不等于产品定义
 - 不把 GZ::CTF 写死在核心逻辑里
 - 不把当前机器环境写死成默认真相
-- 真实环境数据应先映射为标准 `Signal`
-- 智能体应围绕 `Signal / Incident / Output` 运转
+- 真实环境数据应先转化为可供诊断消费的标准化证据
+- 当前主线应以 `LLM reasoner` 为中心，而不是继续扩展规则链
 - 不继续通过堆 if/else 的方式扩展诊断能力
+
+---
+
+## 当前系统如何推理与规划
+
+当前项目里实际存在两套思路，但运行时主线已经不再主要依赖早期的规则链(`signal_mapper -> incident_engine -> output_formatter`)来生成诊断结果。
+
+当前真实诊断流程大致是：
+
+1. 从 Docker 环境采集容器状态
+2. 从 Docker 容器采集最近日志
+3. 对日志做有限的上下文压缩
+4. 将状态、日志片段和证据候选交给 `llm_reasoner`
+5. 由 LLM 输出标准化 `AgentOutput`
+
+因此，当前系统的实际推理方式是：
+
+**证据组织 + LLM 推理**
+
+而不是单纯的：
+
+**规则命中 + 模板输出**
+
+不过需要明确的是，当前系统还没有形成完全独立的“规划层”。
+现在“先采什么、看什么、缺什么、下一步做什么”这些能力，仍然分散在：
+
+- `diagnosis_service.py` 的固定编排顺序
+- `log_context_builder.py` 的日志筛选规则
+- `llm_reasoner.py` 的 prompt 约束
+
+也就是说：
+
+- 推理主线已经存在
+- 规划主线还没有被正式抽象出来
+
+后续更合理的方向是逐步演进到：
+
+**providers -> observation bundle -> planning / reasoning -> `AgentOutput`**
 
 ---
 
@@ -237,10 +318,10 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 而是逐步完成：
 
 1. 真实环境信号采集
-2. 标准化 `Signal`
-3. `Incident` 聚合
+2. 真实环境日志采集
+3. 标准化证据组织
 4. 标准化 `AgentOutput`
-5. 可替换的推理层
+5. 可替换的推理与规划层
 
 ---
 
@@ -251,14 +332,17 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 - `signal_mapper.py` 仍是规则映射
 - `incident_engine.py` 仍是 case 聚合
 - `output_formatter.py` 仍是模板输出
-- 目前只接入了 Docker provider
-- 尚未接入日志 provider
+- `reasoner.py` 仍是规则版推理器
+- `llm_reasoner.py` 仍然带有 prompt 约束和场景偏置
+- `log_context_builder.py` 仍然依赖关键词筛选
+- 目前主要只接入了 Docker 状态和 Docker 日志
 - 尚未接入 Prometheus / metrics provider
-- 尚未引入真正的平台无关推理层
+- 尚未引入真正独立的 planning layer
+- 尚未引入真正的平台无关 observation bundle
 
 换句话说：
 
-**现在已经验证“主线能跑”，但还没有进入成熟的智能推理阶段。**
+**现在已经验证“诊断主线能跑”，但还没有进入成熟的 observation-driven 智能推理阶段。**
 
 ---
 
@@ -266,17 +350,16 @@ curl -X POST http://127.0.0.1:8000/api/chat \
 
 ### 第一阶段：保留已有成果
 - 保留 `Signal / Incident / AgentOutput`
-- 保留真实 `docker_provider`
-- 不再继续扩写更多 case 规则
+- 保留真实 `docker_provider` / `log_provider`
+- 不再继续扩写更多 case 规则链
 
 ### 第二阶段：补充真实信号来源
-- 增加日志 provider
 - 增加健康检查 provider
 - 视资源情况接入 Prometheus provider
 
 ### 第三阶段：引入推理层
-- 从 `incident_engine.py` / `output_formatter.py` 的硬编码规则
-- 迁移到统一 `reasoner`
+- 从“规则链 + prompt 约束”逐步迁移到
+- `observation bundle + planning / reasoning`
 
 ### 第四阶段：再考虑更强的智能体能力
 - Runbook 匹配

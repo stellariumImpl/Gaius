@@ -1,4 +1,12 @@
-"""Signal Mapper: 将原始容器快照映射为标准化 Signal"""
+"""Signal Mapper: 将原始容器快照映射为标准化 Signal
+
+STATUS: FROZEN
+
+说明:
+- 这是第一版规则化映射实现,用于打通早期诊断链路
+- 当前不再作为未来主线继续扩展
+- 后续主线应逐步迁移到 observation-driven 输入组织
+"""
 
 from __future__ import annotations
 

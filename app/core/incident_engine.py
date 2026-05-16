@@ -1,10 +1,17 @@
 """Incident Engine: 将 Signal 聚合成 Incident
 
+STATUS: FROZEN
+
 职责:
 - 只负责把标准化 Signal 归纳为 Incident
 - 不负责采集数据
 - 不负责生成最终对外回答
 - 不负责平台特定适配
+
+说明:
+- 这是第一版规则聚合实现,用于验证 Signal -> Incident 主线
+- 当前不再作为未来主线继续扩展
+- 后续应逐步降级为 fallback / 对照实现
 """
 from __future__ import annotations
 

@@ -1,5 +1,7 @@
 """Reasoner: 统一的运维推理入口
 
+STATUS: FROZEN
+
 职责:
 - 接收标准化 Signal 列表
 - 形成当前问题理解
@@ -9,6 +11,8 @@
 - 当前版本仍使用最小规则,但规则被集中到唯一推理层
 - provider / mapper / domain 模型保持不变
 - 后续可在不改上层接口的前提下替换为更强的推理实现
+- 当前不再作为未来主线继续扩展
+- 后续应逐步降级为 fallback / smoke-test 实现
 """
 from __future__ import annotations
 
