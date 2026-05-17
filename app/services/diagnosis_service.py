@@ -52,6 +52,23 @@ class DiagnosisService:
         )
         return output
 
+    def build_observation_bundle(
+        self,
+        platform_id: str = "platform_default",
+    ) -> ObservationBundle | None:
+        """显式构建 ObservationBundle 供调试和对照使用
+
+        注意:
+        - 这是一个 debug / inspection 入口
+        - 不参与当前 /api/diagnosis 返回逻辑
+        - 用于直接检查 observation 粒度、bundle 结构和 collection_report
+        """
+        snapshots = get_container_snapshots()
+        return self._build_observation_bundle_shadow(
+            platform_id=platform_id,
+            snapshots=snapshots,
+        )
+
     def _build_observation_bundle_shadow(
         self,
         platform_id: str,
